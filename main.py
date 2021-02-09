@@ -88,7 +88,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
             'year_published': book['publication_year'],
             'goodreads_url': book['url'],
             'average_rating': float(book['average_rating']),
-            'counts': {'review': int(book['text_reviews_count'], 'ratings': book['ratings_count'])}
+            'counts': {'review': int(book['text_reviews_count']), 'ratings': int(book['ratings_count'])}
         }
 
     if measure_time:
