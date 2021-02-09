@@ -20,7 +20,15 @@ app.add_middleware(
 )
 
 model = SentenceTransformer("paraphrase-distilroberta-base-v1")
-lsh = LSH()
+
+data_file = os.getenv('DATA_FILE')
+db_sentences = os.getenv('DB_SENTENCES')
+
+if data_file is None:
+    lsh = LSH()
+else:
+    lsh = LSH(hdf5_file=data_file)
+
 nn = NN()
 
 db_pwd = os.getenv('MONGO_PWD')
@@ -62,7 +70,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         time_dict['nn_search'] = elapsed_time()
     
     # get details from db
-    sents = list(db['sentence_data'].find({"_id": {"$in": ids}}))
+    sents = list(db[db_sentences].find({"_id": {"$in": ids}}))
     review_ids = [s['review'] for s in sents]
     reviews = list(db['review_data'].find({"_id": {"$in": review_ids}}))
     isbns = [r['isbn'] for r in reviews]
