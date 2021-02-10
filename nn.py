@@ -17,16 +17,14 @@ class NN():
 
         max_dist = np.inf
 
-        i = -1
         chunk_size = 10_000
-         
+
         for chunk in tqdm(range(len(vectors)//chunk_size)):
-            for v2 in vectors[chunk:chunk+chunk_size]:
-                i += 1
+            for i, v2 in enumerate(vectors[chunk:chunk+chunk_size]):
                 dist = self._distance_(v1, v2)
                 if dist < max_dist:
                     max_idx = np.argmax(dists)
-                    index[max_idx] = i
+                    index[max_idx] = chunk + i
                     dists[max_idx] = dist
                     max_dist = np.max(dists)
 
