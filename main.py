@@ -59,12 +59,13 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     
     # get the bucket the vector is in
     hashed, vectors = lsh.get(query)
+    vectors = np.matrix(vectors)
     
     if measure_time:
         time_dict['get_bucket'] = elapsed_time()
     
     # get the nearest neighbors in said bucket
-    ids = [f"{hashed}_{int(id)}" for id in nn.get_nn(lsh.quantize(query), vectors)]
+    ids = [f"{hashed}_{int(id)}" for id in nn.get_k_nn(lsh.quantize(query), vectors)]
     
     if measure_time:
         time_dict['nn_search'] = elapsed_time()
