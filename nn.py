@@ -10,6 +10,7 @@ class NN():
     # Returns Euclidean distance between vector and matrix of vectors
     def _matrix_distance_(self, v1, matrix):
         v1 = np.array([v1])
+        matrix = np.matrix(matrix)
 
         p1 = np.sum(v1**2, axis=1)[:, np.newaxis]
         p2 = np.sum(matrix**2, axis=1)
