@@ -67,38 +67,34 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     # get the nearest neighbors in said bucket
     ids = [f"{hashed}_{int(id)}" for id in nn.get_nn(lsh.quantize(query), vectors)]
     
+    print('neighbors', len(ids))
+
     if measure_time:
         time_dict['nn_search'] = elapsed_time()
     
     # get details from db
     sents = list(db[db_sentences].find({"_id": {"$in": ids}}))
     review_ids = [s['review'] for s in sents]
-    reviews = list(db['review_data'].find({"_id": {"$in": review_ids}}))
-    isbns = [r['isbn'] for r in reviews]
-    books = list(db['book_data'].find({"isbn": {"$in": isbns}}))
-    results = {}
+    reviews = list(db['reviews'].find({"_id": {"$in": review_ids}}))
+
+    print('sents', len(sents))
+
+    print('uids', set(ids))
+
+    print('reviews', len(reviews))
 
     if measure_time:
         time_dict['db_calls'] = elapsed_time()
 
-    # create dict
-    for s in sents:
-        review = [r for r in reviews if s['review'] == r['_id']][0]
-        book = [b for b in books if b['isbn'] == review['isbn']][0]
-        text = zlib.decompress(review['review_text'])
-        results[ids.index(s['_id'])] = {
-            'rank': ids.index(s['_id']),
-            'relevant_text': text[s['start']:s['end']],
-            'text': text,
-            'relevant_range': [s['start'], s['end']],
-            'isbn': book['isbn'],
-            'image': book['image_url'],
-            'title': book['title'],
-            'year_published': book['publication_year'],
-            'goodreads_url': book['url'],
-            'average_rating': float(book['average_rating']),
-            'counts': {'review': int(book['text_reviews_count']), 'ratings': int(book['ratings_count'])}
-        }
+    for i, r in enumerate(reviews):
+        reviews[i]['review_text'] = zlib.decompress(r['review_text'])
+        for s in sents:
+            if s['review'] == reviews[i]['_id']:
+                 reviews[i]['relevant_text'] = reviews[i]['review_text'][s['start']:s['end']]
+        reviews[i]['description'] = zlib.decompress(r['description'])
+        del reviews[i]['_id']
+
+    results = { i: r for i, r in enumerate(reviews)}
 
     if measure_time:
         time_dict['finalize_and_decompress'] = elapsed_time()

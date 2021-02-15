@@ -9,7 +9,7 @@ class LSH:
                  seed=42,
                  chunksize=1_000,
                  dtype='int8',
-                 file_write='w',
+                 file_write='r',
                  add_neg=True,
                  random_factor=3,
         ):
@@ -57,8 +57,9 @@ class LSH:
       hash_string = "".join([str(num) for num in hash_vector])
       return hash_string
     
-    def quantize(self, item_list):
-      vector_list = [i['vector'] for i in item_list]
+    def quantize(self, vector_list):
+      #print(item_list)
+      #vector_list = [i['vector'] for i in item_list]
       vector_list = np.array(vector_list)
       if self.dtype in ['float16', 'float32']:
           return vector_list.astype(self.dtype)
@@ -116,5 +117,5 @@ class LSH:
     def get(self, vector):
       hashed = self.hash(vector)
       if hashed in self.data:
-          return self.data[hashed]
-      return []
+          return hashed, self.data[hashed]
+      return hashed, []
