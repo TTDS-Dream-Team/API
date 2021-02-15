@@ -59,7 +59,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     
     # get the bucket the vector is in
     hashed, vectors = lsh.get(query)
-    #vectors = np.matrix(vectors)
+    vectors = np.matrix(vectors)
     
     if measure_time:
         time_dict['get_bucket'] = elapsed_time()
