@@ -35,10 +35,12 @@ class NN():
                 dist = self._distance_(v1, v2)
                 if dist < max_dist:
                     max_idx = np.argmax(dists)
-                    index[max_idx] = chunk + i
-                    dists[max_idx] = dist
-                    max_dist = np.max(dists)
+                    if chunk + i not in index:
+                        index[max_idx] = chunk + i
+                        dists[max_idx] = dist
+                        max_dist = np.max(dists)
 
+        print(index)
         return index[~np.isnan(index)]
 
     # Updated kNN for matrix ops
