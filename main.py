@@ -80,6 +80,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     print('sents', len(sents))
 
     print('uids', set(ids))
+    print('revids', review_ids)
 
     print('reviews', len(reviews))
 
