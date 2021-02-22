@@ -45,12 +45,19 @@ class NN():
         return index[~np.isnan(index)]
 
     # Updated kNN for matrix ops
-    def get_k_nn(self, v1, vectors, k=10):
+    def get_k_nn(self, v1, vectors, k=10, chunks=False):
         print(f'searching {len(vectors)} vectors')
-        vectors = np.array(vectors)
 
-        dists = self._matrix_distance_(v1, vectors)
-        top_k = np.argsort(dists, axis=1)[0,:k]
+        if chunks:
+            dists = np.empty(len(vectors))
+            chunksize = 10_000
+            for c in vectors.iter_chunks():
+                dists[c[0]] = self._matrix_distance_(v1, vectors[c])
+        else:
+            vectors = np.array(vectors)
+
+            dists = self._matrix_distance_(v1, vectors)
+        top_k = np.argsort(dists)[:k]
         
         #results = vectors[top_k[:],:]
         results = top_k

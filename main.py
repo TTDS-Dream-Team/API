@@ -65,7 +65,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         time_dict['get_bucket'] = elapsed_time()
     
     # get the nearest neighbors in said bucket
-    ids = [f"{hashed}_{int(id)}" for id in nn.get_k_nn(lsh.quantize(query), vectors)]
+    ids = [f"{hashed}_{int(id)}" for id in nn.get_k_nn(lsh.quantize(query), vectors, chunks=True)]
     
     print('neighbors', len(ids))
 
