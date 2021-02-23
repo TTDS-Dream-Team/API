@@ -6,6 +6,9 @@ import zlib
 import time
 from typing import *
 from sentence_transformers import SentenceTransformer
+from transformers import pipeline
+from collections import OrderedDict
+from operator import getitem
 from lsh import LSH
 from nn import NN
 
@@ -20,6 +23,7 @@ app.add_middleware(
 )
 
 model = SentenceTransformer("paraphrase-distilroberta-base-v1")
+model_sentiment = pipeline('sentiment-analysis', model="nlptown/bert-base-multilingual-uncased-sentiment")
 
 data_file = os.getenv('DATA_FILE')
 db_sentences = os.getenv('DB_SENTENCES')
@@ -35,6 +39,28 @@ db_pwd = os.getenv('MONGO_PWD')
 client = MongoClient(f'mongodb+srv://cdminix:{db_pwd}@cluster0.pdjrf.mongodb.net/Reviews_Data?retryWrites=true&w=majority')
 db = client.Reviews_Data
 
+
+def get_rating(sentiment):
+    """Returns (rating, confidence) tuple from transformer sentiment output"""
+    rating_str = sentiment[0]['label']
+    rating = int(rating_str.split(" ")[0])
+    confidence = float(sentiment[0]['score'])
+    return (rating, confidence)
+
+
+def rank_by_sentiment(data, query_rating):
+    for review_id, values in data.items():
+        review_rating = values.get('rating')
+        print(review_rating)
+        sentiment_similarity = 5 - abs(query_rating - review_rating)
+        values['sentiment_similarity'] = sentiment_similarity
+
+    # Rank data by sentiment value
+    sentiment_order = OrderedDict(
+        sorted(data.items(), key=lambda x: getitem(x[1], 'sentiment_similarity'), reverse=True))
+    return dict(sentiment_order)
+
+
 def elapsed_time():
     e_time = time.time()
     if not hasattr(elapsed_time, 's_time'):
@@ -45,6 +71,7 @@ def elapsed_time():
         return time_diff
     return None
 
+
 @app.get("/search/{query}")
 def get_query(query: str, measure_time: Optional[bool] = False):
     if measure_time:
@@ -53,6 +80,9 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     
     # encode the text using the transformer model
     query = model.encode([query])[0]
+
+    # Get query sentiment
+    query_rating = get_rating(model_sentiment(query))[0]
     
     if measure_time:
         time_dict['encoding'] = elapsed_time()
@@ -101,5 +131,8 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         time_dict['finalize_and_decompress'] = elapsed_time()
         time_dict['total'] = sum(time_dict.values())
         results['timings'] = time_dict
+
+    # Rank results by sentiment
+    sentiment_results = rank_by_sentiment(results, query_rating)
         
-    return results
+    return sentiment_results
