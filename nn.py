@@ -45,14 +45,17 @@ class NN():
         return index[~np.isnan(index)]
 
     # Updated kNN for matrix ops
-    def get_k_nn(self, v1, vectors, k=10, chunks=False):
+    def get_k_nn(self, v1, vectors, k=10, chunks=False, exact_search=False):
         print(f'searching {len(vectors)} vectors')
 
         if chunks:
             dists = np.empty(len(vectors))
             chunksize = 10_000
             for c in vectors.iter_chunks():
-                dists[c[0]] = self._matrix_distance_(v1, vectors[c])
+                if exact_search:
+                    dists[c[0]] = self._levenstein_distance_(v1, vectors[c])
+                else:
+                    dists[c[0]] = self._matrix_distance_(v1, vectors[c])
         else:
             vectors = np.array(vectors)
 
@@ -63,3 +66,32 @@ class NN():
         results = top_k
 
         return results
+
+    # Calculate Levenstein distance between v1 and all vectors
+    def _levenstein_distance_(self, v1, vectors):
+        word1 = v1
+        scores = []
+        for i in range(len(vectors)):
+            score = 0
+            word2 = vectors[i]
+            
+            for j in range(max(len(word1), len(word2))):
+                char1 = -1 if j >= len(word1) else ord(word1[j])
+                char2 = -1 if j >= len(word2) else ord(word2[j])
+
+                diff = char1 - char2
+
+                if diff != 0:
+                    score += 1
+            scores.append(score)
+        return np.array(scores)
+
+    # Sort results by Levenstein distance
+    # May not be needed
+    def sort_by_levenstein_distance(self, v1, vectors):
+        distances = self._levenstein_distance_(v1, vectors)
+
+        sorted_idx = np.argsort(distances)
+        return vectors[sorted_idx[:],:]
+
+
