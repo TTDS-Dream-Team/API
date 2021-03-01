@@ -57,7 +57,11 @@ class NN():
             vectors = np.array(vectors)
 
             dists = self._matrix_distance_(v1, vectors)
-        top_k = np.argsort(dists)[:k]
+        
+        if chunks:
+            top_k = np.argsort(dists)[:k]
+        else:
+            top_k = np.argsort(dists, axis=1)[0,:k]
         
         #results = vectors[top_k[:],:]
         results = top_k
