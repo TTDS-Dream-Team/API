@@ -9,8 +9,12 @@ from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 from collections import OrderedDict
 from operator import getitem
+import numpy as np
 from lsh import LSH
 from nn import NN
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+
+cc = SmoothingFunction()
 
 app = FastAPI(title="BetterReads API")
 
@@ -27,11 +31,12 @@ model_sentiment = pipeline('sentiment-analysis', model="nlptown/bert-base-multil
 
 data_file = os.getenv('DATA_FILE')
 db_sentences = os.getenv('DB_SENTENCES')
+hyper_planes = int(os.getenv('HYPER_PLANES', 6))
 
 if data_file is None:
     lsh = LSH()
 else:
-    lsh = LSH(hdf5_file=data_file)
+    lsh = LSH(hdf5_file=data_file, hash_dim=hyper_planes)
 
 nn = NN()
 
@@ -48,18 +53,50 @@ def get_rating(sentiment):
     return (rating, confidence)
 
 
-def rank_by_sentiment(data, query_rating):
-    for review_id, values in data.items():
+def sentiment_scores(reviews, query_rating):
+    scores = np.zeros(len(reviews))
+    for review_id, values in enumerate(reviews):
         review_rating = values.get('rating')
-        print(review_rating)
-        sentiment_similarity = 5 - abs(query_rating - review_rating)
-        values['sentiment_similarity'] = sentiment_similarity
+        #print(review_rating)
+        if review_rating == 0:
+            sentiment_similarity = 1
+        else:
+            sentiment_similarity = abs(query_rating - review_rating)
+        scores[review_id] = sentiment_similarity
 
-    # Rank data by sentiment value
-    sentiment_order = OrderedDict(
-        sorted(data.items(), key=lambda x: getitem(x[1], 'sentiment_similarity'), reverse=True))
-    return dict(sentiment_order)
+    return scores
 
+def levenshtein(seq1, seq2, costs=[1, 1, 1]):
+    seq1, seq2 = seq1.lower().split(), seq2.lower().split()
+    size_x = len(seq1) + 1
+    size_y = len(seq2) + 1
+    matrix = np.zeros((size_x, size_y))
+    ins_cost, eq_cost, del_cost = costs
+    for x in range(size_x):
+        matrix [x, 0] = x
+    for y in range(size_y):
+        matrix [0, y] = y
+
+    for x in range(1, size_x):
+        for y in range(1, size_y):
+            if seq1[x-1] == seq2[y-1]:
+                matrix [x,y] = min(
+                    matrix[x-1, y] + ins_cost,
+                    matrix[x-1, y-1],
+                    matrix[x, y-1] + del_cost
+                )
+            else:
+                matrix [x,y] = min(
+                    matrix[x-1,y] + ins_cost,
+                    matrix[x-1,y-1] + eq_cost,
+                    matrix[x,y-1] + del_cost
+                )
+    return matrix[size_x - 1, size_y - 1]
+
+def bleu(seq1, seq2):
+    if len(seq1.lower().split()) == 0:
+        return 1
+    return 1-sentence_bleu([seq1.lower().split()], seq2.lower().split(), weights=[1,0,0,0], smoothing_function=cc.method0)
 
 def elapsed_time():
     e_time = time.time()
@@ -78,14 +115,19 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         elapsed_time()
         time_dict = {}
     
+    old_query = query
+
     # encode the text using the transformer model
     query = model.encode([query])[0]
 
-    # Get query sentiment
-    query_rating = get_rating(model_sentiment(query))[0]
-    
     if measure_time:
         time_dict['encoding'] = elapsed_time()
+
+    # Get query sentiment
+    query_rating, query_confidence = get_rating(model_sentiment(old_query))
+    
+    if measure_time:
+        time_dict['sentiment'] = elapsed_time()
     
     # get the bucket the vector is in
     hashed, vectors = lsh.get(query)
@@ -95,7 +137,8 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         time_dict['get_bucket'] = elapsed_time()
     
     # get the nearest neighbors in said bucket
-    ids = [f"{hashed}_{int(id)}" for id in nn.get_k_nn(lsh.quantize(query), vectors, chunks=True)]
+    nn_ids, dists = nn.get_k_nn(lsh.quantize(query), vectors, chunks=True)
+    ids = [f"{hashed}_{int(id)}" for id in nn_ids]
     
     print('neighbors', len(ids))
 
@@ -107,12 +150,12 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     review_ids = [s['review'] for s in sents]
     reviews = list(db['reviews'].find({"_id": {"$in": review_ids}}))
 
-    print('sents', len(sents))
+#    print('sents', len(sents))
 
-    print('uids', set(ids))
-    print('revids', review_ids)
+#    print('uids', set(ids))
+#    print('revids', review_ids)
 
-    print('reviews', len(reviews))
+#    print('reviews', len(reviews))
 
     if measure_time:
         time_dict['db_calls'] = elapsed_time()
@@ -125,14 +168,43 @@ def get_query(query: str, measure_time: Optional[bool] = False):
         reviews[i]['description'] = zlib.decompress(r['description'])
         del reviews[i]['_id']
 
-    results = { i: r for i, r in enumerate(reviews)}
+    if measure_time:
+        time_dict['decompress'] = elapsed_time()
+
+    dists = dists[:len(reviews)]
+    for i, r in enumerate(reviews):
+        #print(levenshtein(r['relevant_text'], old_query), old_query, r['relevant_text'])
+        dists[i,1] = levenshtein(r['relevant_text'], old_query)
+    print(dists[:,1])
+    dists[:,2] = sentiment_scores(reviews, query_rating)
+    dists = dists / dists.max(axis=0)
+    if query_confidence < 0.5:
+        query_confidence = 0
+    weights = [0.9, 0.05, 0.05*query_confidence]
+    for i, w in enumerate(weights):
+        dists[:,i] = dists[:,i]*w
+    sum_dists = dists.sum(axis=1)
+    
+    new_reviews = []
+    for k in np.argsort(sum_dists)[:10]:
+        reviews[k]['scores'] = {}
+        reviews[k]['scores']['semantic'] = dists[k,0]
+        reviews[k]['scores']['exact'] = dists[k,1]
+        reviews[k]['scores']['rating'] = dists[k,2]
+        new_reviews.append(reviews[k])
+
+    reviews = new_reviews
 
     if measure_time:
-        time_dict['finalize_and_decompress'] = elapsed_time()
+        time_dict['sort_weight'] = elapsed_time()
+
+    results = { i: r for i, r in enumerate(reviews)}
+
+    results['sentiment'] = [query_rating, query_confidence]
+
+    if measure_time:
+        time_dict['finalize'] = elapsed_time()
         time_dict['total'] = sum(time_dict.values())
         results['timings'] = time_dict
 
-    # Rank results by sentiment
-    sentiment_results = rank_by_sentiment(results, query_rating)
-        
-    return sentiment_results
+    return results
