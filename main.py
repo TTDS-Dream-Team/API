@@ -101,6 +101,7 @@ def bleu(seq1, seq2):
 
 def meteor(seq, query):
     seq = str(seq)
+    query = str(query)
     if len(query.lower().split()) == 0:
         return 1
     return 1 - meteor_score([seq], query)
