@@ -13,6 +13,7 @@ import numpy as np
 from lsh import LSH
 from nn import NN
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
 
 cc = SmoothingFunction()
 
@@ -98,6 +99,12 @@ def bleu(seq1, seq2):
         return 1
     return 1-sentence_bleu([seq1.lower().split()], seq2.lower().split(), weights=[1,0,0,0], smoothing_function=cc.method0)
 
+def meteor(seq, query):
+    if len(query.lower().split()) == 0:
+        return 1
+    return 1 - meteor_score([seq], query)
+
+
 def elapsed_time():
     e_time = time.time()
     if not hasattr(elapsed_time, 's_time'):
@@ -174,7 +181,8 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     dists = dists[:len(reviews)]
     for i, r in enumerate(reviews):
         #print(levenshtein(r['relevant_text'], old_query), old_query, r['relevant_text'])
-        dists[i,1] = levenshtein(r['relevant_text'], old_query)
+        #dists[i,1] = levenshtein(r['relevant_text'], old_query)
+        dists[i,1] = meteor(old_query, r['relevant_text'])
     print(dists[:,1])
     dists[:,2] = sentiment_scores(reviews, query_rating)
     dists = dists / dists.max(axis=0)
