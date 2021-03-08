@@ -100,6 +100,7 @@ def bleu(seq1, seq2):
     return 1-sentence_bleu([seq1.lower().split()], seq2.lower().split(), weights=[1,0,0,0], smoothing_function=cc.method0)
 
 def meteor(seq, query):
+    seq = str(seq)
     if len(query.lower().split()) == 0:
         return 1
     return 1 - meteor_score([seq], query)
@@ -182,8 +183,7 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     for i, r in enumerate(reviews):
         #print(levenshtein(r['relevant_text'], old_query), old_query, r['relevant_text'])
         #dists[i,1] = levenshtein(r['relevant_text'], old_query)
-        print(old_query)
-        print(r['relevant_text'])
+
         dists[i,1] = meteor(old_query, r['relevant_text'])
     print(dists[:,1])
     dists[:,2] = sentiment_scores(reviews, query_rating)
