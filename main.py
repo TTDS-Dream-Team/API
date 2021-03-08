@@ -14,8 +14,7 @@ from lsh import LSH
 from nn import NN
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.translate.meteor_score import meteor_score
-import nltk
-nltk.download('wordnet')
+
 cc = SmoothingFunction()
 
 app = FastAPI(title="BetterReads API")
@@ -183,6 +182,8 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     for i, r in enumerate(reviews):
         #print(levenshtein(r['relevant_text'], old_query), old_query, r['relevant_text'])
         #dists[i,1] = levenshtein(r['relevant_text'], old_query)
+        print(old_query)
+        print(r['relevant_text'])
         dists[i,1] = meteor(old_query, r['relevant_text'])
     print(dists[:,1])
     dists[:,2] = sentiment_scores(reviews, query_rating)
