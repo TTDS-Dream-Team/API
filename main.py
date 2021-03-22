@@ -169,15 +169,13 @@ def get_query(query: str,
             "$in": ids
         },
         
-        "average_rating":{
+        "rating":{
             "$gte":rating_low,
-            "$lt":rating_high
+            "$lte":rating_high
         },
-
-        "publication_year":{
-            "$gte":year_low,
-            "$lt":year_high
-        }
+        
+        "$expr": { "$gte": [{ "$toInt": "$publication_year" }, year_low]},
+        "$expr": { "$lte": [{ "$toInt": "$publication_year" }, year_high]}
         }
     ))
     review_ids = [s['review'] for s in sents]
