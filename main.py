@@ -119,12 +119,18 @@ def elapsed_time():
 
 
 @app.get("/search/{query}")
-def get_query(query: str, measure_time: Optional[bool] = False):
+def get_query(query: str, 
+                measure_time: Optional[bool] = False, 
+                rating_low: Optional[float] = 0,
+                rating_high: Optional[float] = 5,
+                year_low: Optional[int] = 1950,
+                year_high: Optional[int] = 2021):
     if measure_time:
         elapsed_time()
         time_dict = {}
     
     old_query = query
+
 
     # encode the text using the transformer model
     query = model.encode([query])[0]
@@ -151,11 +157,29 @@ def get_query(query: str, measure_time: Optional[bool] = False):
     
     print('neighbors', len(ids))
 
+
+
     if measure_time:
         time_dict['nn_search'] = elapsed_time()
     
     # get details from db
-    sents = list(db[db_sentences].find({"_id": {"$in": ids}}))
+    sents = list(db[db_sentences].find(
+        {
+        "_id":{
+            "$in": ids
+        },
+        
+        "average_rating":{
+            "$gte":rating_low,
+            "$lt":rating_high
+        },
+
+        "publication_year":{
+            "$gte":year_low,
+            "$lt":year_high
+        }
+        }
+    ))
     review_ids = [s['review'] for s in sents]
     reviews = list(db['reviews'].find({"_id": {"$in": review_ids}}))
 
